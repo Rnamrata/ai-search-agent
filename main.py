@@ -5,11 +5,12 @@ from langgraph.graph.message import add_messages
 from langchain.chat_models import init_chat_model
 from typing_extensions import TypedDict
 from pydantic import BaseModel, Field
-from web_operations import serp_search
+from web_operations import serp_search, reddit_search_api
 
 load_dotenv()
 
 llm = init_chat_model("gpt-4o")
+
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
@@ -17,7 +18,7 @@ class State(TypedDict):
     google_results: str | None
     bing_results: str | None
     reddit_results: str | None
-    selected_reddit_urls : list[str] | None
+    selected_reddit_urls: list[str] | None
     reddit_post_data: list | None
     google_analysis: str | None
     bing_analysis: str | None
@@ -47,9 +48,10 @@ def bing_search(state: State):
 
 def reddit_search(state: State):
     user_question = state.get("user_question", "")
-    print(f"Searching Redit for: {user_question}\n")
+    print(f"Searching Reddit for: {user_question}")
 
-    reddit_results = []
+    reddit_results = reddit_search_api(keyword=user_question)
+    print(reddit_results)
 
     return {"reddit_results": reddit_results}
 
@@ -136,8 +138,8 @@ def run_chatbot():
             "final_answer": None,
         }
 
-        print("\n Starting parallel research process...")
-        print("\n Launching Google, Bing, and Reddit searches...\n")
+        print("\nStarting parallel research process...")
+        print("\nLaunching Google, Bing, and Reddit searches...\n")
         final_state = graph.invoke(state)
 
         if final_state.get("final_answer"):
