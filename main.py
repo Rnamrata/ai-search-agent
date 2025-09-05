@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from typing import Annotated,  List
+from typing import Annotated, List
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langchain.chat_models import init_chat_model
@@ -35,8 +35,10 @@ class State(TypedDict):
 class RedditURLAnalysis(BaseModel):
     selected_urls: List[str] = Field(description="List of Reddit URLs that contain valuable information for answering the user's question")
 
+
 def google_search(state: State):
     user_question = state.get("user_question", "")
+    print(f"Searching Google for: {user_question}")
 
     google_results = serp_search(user_question, engine="google")
     print(f"Google results: {google_results}\n")
@@ -46,6 +48,7 @@ def google_search(state: State):
 
 def bing_search(state: State):
     user_question = state.get("user_question", "")
+    print(f"Searching Bing for: {user_question}")
 
     bing_results = serp_search(user_question, engine="bing")
     print(f"Bing results: {bing_results}\n")
@@ -55,6 +58,7 @@ def bing_search(state: State):
 
 def reddit_search(state: State):
     user_question = state.get("user_question", "")
+    print(f"Searching Reddit for: {user_question}")
 
     reddit_results = reddit_search_api(keyword=user_question)
     print(reddit_results)
@@ -77,12 +81,12 @@ def analyze_reddit_posts(state: State):
         selected_urls = analysis.selected_urls
 
         print("Selected URLs:\n")
-        for i, url in enumerate(selected_urls):
-            print(f"   {i}.{url}")
+        for i, url in enumerate(selected_urls, 1):
+            print(f"   {i}. {url}")
 
     except Exception as e:
         print(e)
-        return {"selected_reddit_urls": []}
+        selected_urls = []
 
     return {"selected_reddit_urls": selected_urls}
 
@@ -110,19 +114,58 @@ def retrieve_reddit_posts(state: State):
 
 
 def analyze_google_results(state: State):
-    return {"google_analysis": ""}
+    print("Analyzing Google search results...")
+
+    user_question = state.get("user_question", "")
+    google_results = state.get("google_results", "")
+
+    messages = get_google_analysis_messages(user_question, google_results)
+    reply = llm.invoke(messages)
+
+    return {"google_analysis": reply.content}
 
 
 def analyze_bing_results(state: State):
-    return {"bing_analysis": ""}
+    print("Analyzing Bing search results...")
+
+    user_question = state.get("user_question", "")
+    bing_results = state.get("bing_results", "")
+
+    messages = get_bing_analysis_messages(user_question, bing_results)
+    reply = llm.invoke(messages)
+
+    return {"bing_analysis": reply.content}
 
 
 def analyze_reddit_results(state: State):
-    return {"reddit_analysis": ""}
+    print("Analyzing Reddit search results...")
+
+    user_question = state.get("user_question", "")
+    reddit_results = state.get("reddit_results", "")
+    reddit_post_data = state.get("reddit_post_data", "")
+
+    messages = get_reddit_analysis_messages(user_question, reddit_results, reddit_post_data)
+    reply = llm.invoke(messages)
+
+    return {"reddit_analysis": reply.content}
 
 
 def synthesize_analyses(state: State):
-    return {"final_answer": ""}
+    print("Combine all results together...")
+
+    user_question = state.get("user_question", "")
+    google_analysis = state.get("google_analysis", "")
+    bing_analysis = state.get("bing_analysis", "")
+    reddit_analysis = state.get("reddit_analysis", "")
+
+    messages = get_synthesis_messages(
+        user_question, google_analysis, bing_analysis, reddit_analysis
+    )
+
+    reply = llm.invoke(messages)
+    final_answer = reply.content
+
+    return {"final_answer": final_answer, "messages": [{"role": "assistant", "content": final_answer}]}
 
 
 graph_builder = StateGraph(State)
@@ -144,7 +187,6 @@ graph_builder.add_edge(START, "reddit_search")
 graph_builder.add_edge("google_search", "analyze_reddit_posts")
 graph_builder.add_edge("bing_search", "analyze_reddit_posts")
 graph_builder.add_edge("reddit_search", "analyze_reddit_posts")
-
 graph_builder.add_edge("analyze_reddit_posts", "retrieve_reddit_posts")
 
 graph_builder.add_edge("retrieve_reddit_posts", "analyze_google_results")
@@ -160,17 +202,17 @@ graph_builder.add_edge("synthesize_analyses", END)
 graph = graph_builder.compile()
 
 def run_chatbot():
-    print("Multi- Source Research Agent")
-    print("Type 'exit to quit'\n")
+    print("Multi-Source Research Agent")
+    print("Type 'exit' to quit\n")
 
     while True:
-        user_input = input("Ask me anything : ")
+        user_input = input("Ask me anything: ")
         if user_input.lower() == "exit":
             print("Bye")
             break
 
         state = {
-            "messages": [{"role": "user", "content": user_input }],
+            "messages": [{"role": "user", "content": user_input}],
             "user_question": user_input,
             "google_results": None,
             "bing_results": None,

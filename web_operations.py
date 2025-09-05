@@ -1,4 +1,3 @@
-from http.client import responses
 
 from dotenv import load_dotenv
 import os
@@ -8,9 +7,7 @@ from snapshot_operations import download_snapshot, poll_snapshot_status
 
 load_dotenv()
 
-
 dataset_id = "gd_lvz8ah06191smkebj4"
-
 
 def _make_api_request(url, **kwargs):
     api_key = os.getenv("BRIGHTDATA_API_KEY")
@@ -28,7 +25,7 @@ def _make_api_request(url, **kwargs):
         print(f"API request failed with exception: {e}")
         return None
     except Exception as e:
-        print(f" Unknown error: {e}")
+        print(f"Unknown error: {e}")
         return None
 
 
@@ -56,7 +53,6 @@ def serp_search(query, engine="google"):
         "knowledge": full_response.get("knowledge", {}),
         "organic": full_response.get("organic", []),
     }
-
     return extracted_data
 
 
@@ -114,7 +110,8 @@ def reddit_search_api(keyword, date="All time", sort_by="Hot", num_of_posts=75):
 
     return {"parsed_posts": parsed_data, "total_found": len(parsed_data)}
 
-def reddit_post_retrieval(urls, days_back=10, load_api_replies=False, comment_limit=""):
+
+def reddit_post_retrieval(urls, days_back=10, load_all_replies=False, comment_limit=""):
     if not urls:
         return None
 
@@ -129,29 +126,26 @@ def reddit_post_retrieval(urls, days_back=10, load_api_replies=False, comment_li
         {
             "url": url,
             "days_back": days_back,
-            "load_api_replies": load_api_replies,
+            "load_all_replies": load_all_replies,
             "comment_limit": comment_limit
         }
         for url in urls
     ]
 
     raw_data = _trigger_and_download_snapshot(
-        trigger_url, params, data, operation_name="reddit_comments"
+        trigger_url, params, data, operation_name="reddit comments"
     )
 
     if not raw_data:
         return None
 
-    parsed_data = []
+    parsed_comments = []
     for comment in raw_data:
         parsed_comment = {
             "comment_id": comment.get("comment_id"),
-            "content": comment.get("content"),
-            "date": comment.get("date"),
-            "parent_comment_id": comment.get("parent_comment_id"),
-            "post_title": comment.get("post_title")
+            "content": comment.get("comment"),
+            "date": comment.get("date_posted"),
         }
+        parsed_comments.append(parsed_comment)
 
-        parsed_comment.append(parsed_comment)
-
-        return {"comments": parsed_comment, "total_retrieved": len(parsed_comment)}
+    return {"comments": parsed_comments, "total_retrieved": len(parsed_comments)}
